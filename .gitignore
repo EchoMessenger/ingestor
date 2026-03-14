@@ -1,0 +1,30 @@
+# Бинарники
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build cache
+*.test
+*.out
+vendor/
+
+# Локальное окружение — содержит секреты, не коммитить
+.env.local
+.env.*.local
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker volumes (если монтируются локально)
+data/
+
+# Логи
+*.log
