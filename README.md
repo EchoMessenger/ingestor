@@ -4,6 +4,13 @@ Kafka → ClickHouse ingestor для аудит-сервиса EchoMessenger.
 
 Читает protobuf-события из Kafka топиков Tinode, десериализует их и пишет батчами в ClickHouse.
 
+## GitHub Actions SonarQube
+
+Для workflow `/.github/workflows/sonar.yml` нужны:
+- `secrets.SONAR_HOST_URL`
+- `secrets.SONAR_TOKEN`
+- `vars.SONAR_PROJECT_KEY_INGESTOR`
+
 ## Архитектура
 
 ```
