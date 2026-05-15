@@ -3,7 +3,7 @@ BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 IMAGE     ?= ghcr.io/echomessenger/ingestor
 PLATFORM  ?= linux/amd64
 
-.PHONY: deps tidy build run seed infra-up infra-down topics health stats lint docker-build docker-push
+.PHONY: deps tidy test coverage build run seed infra-up infra-down topics health stats lint docker-build docker-push
 
 # ---- Go ----
 
@@ -12,6 +12,13 @@ deps:
 
 tidy:
 	go mod tidy
+
+test:
+	go test ./...
+
+coverage:
+	go test ./... -coverprofile=coverage.out
+	@echo "Coverage report generated: coverage.out"
 
 build:
 	mkdir -p bin

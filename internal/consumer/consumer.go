@@ -16,7 +16,7 @@ import (
 
 // Group реализует sarama.ConsumerGroupHandler.
 type Group struct {
-	registry *handler.Registry
+	registry handlerRegistry
 	dlqFn    func(topic, key string, value []byte, reason string)
 	log      *slog.Logger
 
@@ -31,7 +31,15 @@ type Group struct {
 	dlqSent   int64
 }
 
+type handlerRegistry interface {
+	Get(topic string) (handler.Handler, bool)
+}
+
 func NewGroup(registry *handler.Registry, dlqFn func(topic, key string, value []byte, reason string), log *slog.Logger) *Group {
+	return newGroup(registry, dlqFn, log)
+}
+
+func newGroup(registry handlerRegistry, dlqFn func(topic, key string, value []byte, reason string), log *slog.Logger) *Group {
 	return &Group{
 		registry: registry,
 		dlqFn:    dlqFn,
