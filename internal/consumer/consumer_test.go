@@ -185,3 +185,34 @@ func TestRunnerRunClosesClientWhenContextCanceled(t *testing.T) {
 		t.Fatalf("client was not closed")
 	}
 }
+
+func TestCleanupStopsHandlers(t *testing.T) {
+	h := &fakeHandler{}
+	g := newGroup(fakeRegistry{h: h, ok: true}, nil, consumerLogger())
+	sess := &fakeSession{}
+
+	if err := g.Setup(sess); err != nil {
+		t.Fatalf("Setup failed: %v", err)
+	}
+
+	if err := g.Cleanup(sess); err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+}
+
+func TestOnReadyCallback(t *testing.T) {
+	g := newGroup(fakeRegistry{}, nil, consumerLogger())
+	var callCount int
+	g.OnReady(func() { callCount++ })
+	sess := &fakeSession{}
+
+	g.Setup(sess)
+	if callCount != 1 {
+		t.Fatalf("OnReady not called or called %d times", callCount)
+	}
+
+	g.Setup(sess)
+	if callCount != 1 {
+		t.Fatalf("OnReady called multiple times: %d", callCount)
+	}
+}

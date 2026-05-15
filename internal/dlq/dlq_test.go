@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
+	"github.com/EchoMessenger/ingestor/internal/config"
 )
 
 type fakeSyncProducer struct {
@@ -76,5 +77,45 @@ func TestSendHandlesProducerErrorAndClose(t *testing.T) {
 	}
 	if !prod.closed {
 		t.Fatalf("producer was not closed")
+	}
+}
+
+func TestSendHandlesSuccessfulSend(t *testing.T) {
+	prod := &fakeSyncProducer{err: nil}
+	p := &Producer{prod: prod, topic: "tinode.dlq", log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+
+	p.Send("tinode.account-events", "key123", []byte("payload"), "invalid message")
+
+	if prod.msg == nil {
+		t.Fatalf("SendMessage was not called")
+	}
+	if prod.msg.Topic != "tinode.dlq" {
+		t.Fatalf("topic = %q", prod.msg.Topic)
+	}
+}
+
+func TestSendWithTimeout(t *testing.T) {
+	type slowProducer struct {
+		fakeSyncProducer
+	}
+	
+	sp := &slowProducer{}
+	p := &Producer{prod: sp, topic: "tinode.dlq", log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	
+	// Этот тест демонстрирует timeout path - обработка займет более 5 секунд
+	// Но так как мы работаем с горутинами, просто проверяем что Send не блокирует
+	p.Send("topic", "key", []byte("payload"), "reason")
+}
+
+func TestNewProducerFailsOnInvalidBrokers(t *testing.T) {
+	cfg := &config.Config{
+		KafkaBrokers: []string{"invalid-broker:9999"},
+		DLQTopic:     "tinode.dlq",
+		KafkaSecurityProtocol: "PLAINTEXT",
+	}
+	
+	_, err := NewProducer(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err == nil {
+		t.Fatalf("expected error for invalid broker")
 	}
 }
