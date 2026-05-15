@@ -111,7 +111,6 @@ func TestNewProducerFailsOnInvalidBrokers(t *testing.T) {
 	cfg := &config.Config{
 		KafkaBrokers: []string{"invalid-broker:9999"},
 		DLQTopic:     "tinode.dlq",
-		KafkaSecurityProtocol: "PLAINTEXT",
 	}
 	
 	_, err := NewProducer(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
