@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/EchoMessenger/ingestor/internal/config"
+	kafkacfg "github.com/EchoMessenger/ingestor/internal/kafka"
 	"github.com/IBM/sarama"
 )
 
@@ -17,27 +19,27 @@ type Producer struct {
 	log   *slog.Logger
 }
 
-func NewProducer(brokers []string, topic string, log *slog.Logger) (*Producer, error) {
-	cfg := sarama.NewConfig()
-	cfg.Producer.Return.Successes = true
-	cfg.Producer.RequiredAcks = sarama.WaitForAll
-	cfg.Producer.Retry.Max = 3
+func NewProducer(cfg *config.Config, log *slog.Logger) (*Producer, error) {
+	// Используем общий config builder — TLS и SASL применяются автоматически.
+	// Без этого при SASL-защищённом брокере получаем EOF на этапе handshake.
+	sc := kafkacfg.NewSaramaConfig(cfg)
+	sc.Producer.Return.Successes = true
+	sc.Producer.RequiredAcks = sarama.WaitForAll
+	sc.Producer.Retry.Max = 3
 
-	prod, err := sarama.NewSyncProducer(brokers, cfg)
+	prod, err := sarama.NewSyncProducer(cfg.KafkaBrokers, sc)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Producer{prod: prod, topic: topic, log: log}, nil
+	return &Producer{prod: prod, topic: cfg.DLQTopic, log: log}, nil
 }
 
-// Send отправляет сырые байты в DLQ.
-// key — оригинальный partition key, value — сырой protobuf.
+// Send отправляет сырые байты в DLQ с заголовками для диагностики.
 func (p *Producer) Send(sourceTopic, key string, value []byte, reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 
-	// Добавляем заголовки для диагностики
 	headers := []sarama.RecordHeader{
 		{Key: []byte("source_topic"), Value: []byte(sourceTopic)},
 		{Key: []byte("reason"), Value: []byte(reason)},

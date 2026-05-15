@@ -64,7 +64,7 @@ func main() {
 	log.Info("clickhouse.init.ok", "addr", cfg.ClickHouseAddr)
 
 	// ---- DLQ producer ----
-	dlqProducer, err := dlq.NewProducer(cfg.KafkaBrokers, cfg.DLQTopic, log)
+	dlqProducer, err := dlq.NewProducer(cfg, log)
 	if err != nil {
 		log.Error("dlq.init.failed", "err", err)
 		os.Exit(1)

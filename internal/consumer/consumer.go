@@ -2,44 +2,15 @@ package consumer
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/sha512"
-	"crypto/tls"
 	"log/slog"
-	"strings"
-	"time"
-
 	"sync"
+	"time"
 
 	"github.com/EchoMessenger/ingestor/internal/config"
 	"github.com/EchoMessenger/ingestor/internal/handler"
+	kafkacfg "github.com/EchoMessenger/ingestor/internal/kafka"
 	"github.com/IBM/sarama"
-	"github.com/xdg-go/scram"
 )
-
-// ---- SCRAM (копия из router) ----
-
-var (
-	SHA256 scram.HashGeneratorFcn = sha256.New
-	SHA512 scram.HashGeneratorFcn = sha512.New
-)
-
-type xdgSCRAMClient struct {
-	*scram.Client
-	*scram.ClientConversation
-	scram.HashGeneratorFcn
-}
-
-func (x *xdgSCRAMClient) Begin(u, p, a string) (err error) {
-	x.Client, err = x.HashGeneratorFcn.NewClient(u, p, a)
-	if err != nil {
-		return err
-	}
-	x.ClientConversation = x.Client.NewConversation()
-	return nil
-}
-func (x *xdgSCRAMClient) Step(c string) (string, error) { return x.ClientConversation.Step(c) }
-func (x *xdgSCRAMClient) Done() bool                    { return x.ClientConversation.Done() }
 
 // ---- Consumer group handler ----
 
@@ -159,7 +130,8 @@ type Runner struct {
 }
 
 func NewRunner(cfg *config.Config, group *Group, log *slog.Logger) (*Runner, error) {
-	sc := sarama.NewConfig()
+	// TLS и SASL берём из общего builder — то же что использует DLQ producer.
+	sc := kafkacfg.NewSaramaConfig(cfg)
 	sc.Version = sarama.V2_6_0_0
 	sc.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{
 		sarama.NewBalanceStrategyRoundRobin(),
@@ -167,34 +139,6 @@ func NewRunner(cfg *config.Config, group *Group, log *slog.Logger) (*Runner, err
 	sc.Consumer.Offsets.Initial = sarama.OffsetOldest
 	sc.Consumer.Offsets.AutoCommit.Enable = true
 	sc.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
-
-	if cfg.KafkaTLSEnable {
-		sc.Net.TLS.Enable = true
-		sc.Net.TLS.Config = &tls.Config{
-			InsecureSkipVerify: false,
-		}
-	}
-
-	if cfg.KafkaSASLEnable {
-		sc.Net.SASL.Enable = true
-		sc.Net.SASL.User = cfg.KafkaSASLUsername
-		sc.Net.SASL.Password = cfg.KafkaSASLPassword
-
-		switch strings.ToUpper(cfg.KafkaSASLMechanism) {
-		case "SCRAM-SHA-256":
-			sc.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
-			sc.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-				return &xdgSCRAMClient{HashGeneratorFcn: SHA256}
-			}
-		case "SCRAM-SHA-512":
-			sc.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
-			sc.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
-				return &xdgSCRAMClient{HashGeneratorFcn: SHA512}
-			}
-		default:
-			sc.Net.SASL.Mechanism = sarama.SASLTypePlaintext
-		}
-	}
 
 	client, err := sarama.NewConsumerGroup(cfg.KafkaBrokers, cfg.KafkaGroupID, sc)
 	if err != nil {
